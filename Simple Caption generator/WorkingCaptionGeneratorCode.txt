@@ -1,0 +1,53 @@
+import bpy
+import csv
+
+# --- CONFIGURATION ---
+# Change this to the actual path of your CSV file
+csv_file_path = "C:\\Users\\root\\Desktop\\video\\captions.csv"
+target_channel = 3  # Which track/channel to put the text on
+# ---------------------
+
+def add_captions_from_csv(filepath):
+    # Ensure the scene has a sequence editor
+    if not bpy.context.scene.sequence_editor:
+        bpy.context.scene.sequence_editor_create()
+    
+    sequencer = bpy.context.scene.sequence_editor
+    
+    try:
+        with open(filepath, mode='r', encoding='latin-1') as f:
+            reader = csv.reader(f)
+            
+            for row in reader:
+                if not row: continue # Skip empty lines
+                
+                # Parse data from CSV columns
+                caption_text = row[0]
+                frame_start = int(row[1])
+                frame_end = int(row[2])
+                
+                # Create the Text effect strip
+                # Note: name is just the internal ID, text is the actual content
+                strip = sequencer.sequences.new_effect(
+                    name="Caption_Strip",
+                    type='TEXT',
+                    channel=target_channel,
+                    frame_start=frame_start,
+                    frame_end=frame_end
+                )
+                
+                # Set the display text
+                strip.text = caption_text
+                
+                # Optional: Style the text
+                strip.font_size = 60
+                strip.use_shadow = True
+                strip.location[1] = 0.1 # Move to bottom of screen (0 to 1 range)
+                
+            print(f"Successfully imported captions from {filepath}")
+            
+    except Exception as e:
+        print(f"Error: {e}")
+
+# Run the function
+add_captions_from_csv(csv_file_path)
