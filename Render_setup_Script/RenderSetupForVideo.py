@@ -16,7 +16,7 @@ def setup_render_settings(output_directory, filename="MyRender"):
     render.resolution_x = 1920
     render.resolution_y = 1080
     render.resolution_percentage = 100
-    render.fps = 30
+    render.fps = 60 # set as the per video FPS
 
     # 3. Set File Format to FFmpeg
     render.image_settings.file_format = 'FFMPEG'
@@ -28,7 +28,7 @@ def setup_render_settings(output_directory, filename="MyRender"):
     
     # 5. Set Audio Settings (Crucial for your previous import)
     render.ffmpeg.audio_codec = 'MP3'
-    render.ffmpeg.audio_bitrate = 192
+    render.ffmpeg.audio_bitrate = 256
 
     print(f"Render settings updated! Output path: {render.filepath}")
 
