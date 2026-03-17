@@ -2,42 +2,31 @@ import bpy
 import os
 
 def add_typewriter_audio(strip, sound_path):
-    if not os.path.exists(sound_path):
-        print(f"Sound file not found: {sound_path}")
-        return
-
     scene = bpy.context.scene
-    # USE .sequences here
+    fps = scene.render.fps / scene.render.fps_base
     sequencer = scene.sequence_editor.sequences
     
-    # Safety check for custom property
-    if "full_message" not in strip:
-        full_text = strip.text
-    else:
-        full_text = strip["full_message"]
-        
-    duration_frames = strip.frame_final_duration - 10
-    total_chars = len(full_text)
-    frames_per_char = duration_frames / max(1, total_chars)
+    # Respect the same pause time
+    pause_seconds = scene.get("subtitle_pause_time", 1.0)
+    delay_frames = int(pause_seconds * fps)
     
-    # Ensure we don't try to use Channel 0
-    sound_channel = max(1, strip.channel - 1)
+    full_text = strip.get("full_message", strip.text)
+    typing_duration = strip.frame_final_duration - delay_frames
+    
+    total_chars = len(full_text)
+    frames_per_char = typing_duration / max(1, total_chars)
     
     for i in range(total_chars):
         if full_text[i] == " ": continue
-            
         click_frame = int(strip.frame_start + (i * frames_per_char))
         
-        try:
-            snd = sequencer.new_sound(
-                name="Click",
-                filepath=sound_path,
-                channel=sound_channel,
-                frame_start=click_frame
-            )
-            snd.frame_final_duration = 2
-        except Exception as e:
-            print(f"Could not add sound: {e}")
+        snd = sequencer.new_sound(
+            name="Click",
+            filepath=sound_path,
+            channel=max(1, strip.channel - 1),
+            frame_start=click_frame
+        )
+        snd.frame_final_duration = 2
 
 
 def add_fade(strip, fade_frames=10):
@@ -55,11 +44,13 @@ def add_fade(strip, fade_frames=10):
     strip.blend_alpha = 0.0
     strip.keyframe_insert(data_path="blend_alpha", frame=strip.frame_start + strip.frame_final_duration)
 
-def set_style(strip, size=60, color=(1, 1, 1, 1), shadow=True):
+def set_style(strip, b_color, t_color=(1, 1, 1, 1), size=60, shadow=True):
     """Sets the font size, color (RGBA), and shadow."""
+    strip.color = t_color
     strip.font_size = size
-    strip.color = color
     strip.use_shadow = shadow
+    strip.use_box = True
+    strip.box_color = b_color
     if shadow:
         strip.shadow_color = (0, 0, 0, 1)
 
@@ -89,46 +80,59 @@ def apply_typewriter(strip):
 
 
 def typewriter_handler(scene):
-    """The function that runs every time the frame changes."""
     if not scene.sequence_editor:
         return
 
     current_frame = scene.frame_current
+    fps = scene.render.fps / scene.render.fps_base
     
-    for s in scene.sequence_editor.sequences:
-        # Check if this strip has our secret "full_message" property
-        if s.type == 'TEXT' and "full_message" in s.keys():
+    # Get delay from scene property, default to 1.0 if not found
+    pause_seconds = scene.get("subtitle_pause_time", 1.0)
+    delay_frames = int(pause_seconds * fps)
+
+    for s in scene.sequence_editor.strips:
+        if "full_message" in s:
+            # Calculate the window for typing
+            typing_duration = max(1, s.frame_final_duration - delay_frames)
             
-            start = s.frame_start
-            # Use a small buffer (5 frames) so the text finishes before the strip ends
-            duration = max(1, s.frame_final_duration - 5)
-            full_text = s["full_message"]
-            
-            # Calculate progress (0.0 to 1.0)
-            elapsed = current_frame - start
-            progress = min(max(elapsed / duration, 0.0), 1.0)
-            
-            # Determine how many characters to show
-            char_count = int(len(full_text) * progress)
-            
-            # Add a blinking cursor effect
-            cursor = "_" if (current_frame // 10) % 2 == 0 and progress < 1.0 else ""
-            
-            # Update the ACTUAL text property Blender displays
-            s.text = full_text[:char_count] + cursor
+            if s.frame_start <= current_frame <= (s.frame_start + s.frame_final_duration):
+                full_text = s["full_message"]
+                elapsed = current_frame - s.frame_start
+                
+                # Progress is locked to 1.0 once typing_duration is passed
+                progress = min(1.0, elapsed / typing_duration)
+                char_count = int(len(full_text) * progress)
+                
+                # Cursor logic
+                cursor = ""
+                if progress < 1.0:
+                    cursor = "_" if (current_frame // 10) % 2 == 0 else ""
+
+                s.text = full_text[:char_count] + cursor
+                s.update()
 
 # --- REGISTRATION LOGIC ---
 
-def register():
-    # 1. Clean up old handlers first so they don't stack up!
-    for h in bpy.app.handlers.frame_change_pre:
-        if h.__name__ == "typewriter_handler":
-            bpy.app.handlers.frame_change_pre.remove(h)
-            
-    # 2. Add the handler to Blender's heart-beat
-    bpy.app.handlers.frame_change_pre.append(typewriter_handler)
-    print("Typewriter Handler Registered Successfully!")
 
+    
+def register():
+    # List of handler types we want to attach to
+    handler_lists = [
+        bpy.app.handlers.frame_change_pre,
+        bpy.app.handlers.render_pre        # <--- ADD THIS FOR RENDERING
+    ]
+
+    for handler_list in handler_lists:
+        # Clean up old versions
+        for h in handler_list:
+            if h.__name__ == "typewriter_handler":
+                handler_list.remove(h)
+        
+        # Add the fresh version
+        handler_list.append(typewriter_handler)
+    
+    print("Typewriter Handler Registered for Viewport AND Render!")
+    
 def apply_to_selected_strips():
     """Run this to 'tag' selected text strips for the typewriter effect."""
     for s in bpy.context.selected_sequences:
