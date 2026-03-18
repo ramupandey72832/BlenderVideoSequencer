@@ -5,3 +5,5 @@ importing video with audio https://github.com/ramupandey72832/BlenderVideoSequen
 
 
 about blender scripting https://behreajj.medium.com/creative-coding-in-blender-2-92-a-primer-7ac1b6fec3f
+
+about Blender CLI https://renderday.com/blog/mastering-the-blender-cli
