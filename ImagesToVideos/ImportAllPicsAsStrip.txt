@@ -1,0 +1,78 @@
+import bpy
+import os
+
+def create_fitted_image_strips(directory_path, strip_duration_sec=2):
+    # 1. Setup VSE context
+    if not bpy.context.scene.sequence_editor:
+        bpy.context.scene.sequence_editor_create()
+    
+    scene = bpy.context.scene
+    sequencer = scene.sequence_editor
+    
+    # Get project dimensions & FPS
+    render_width = scene.render.resolution_x
+    render_height = scene.render.resolution_y
+    fps = scene.render.fps
+    strip_frame_length = int(strip_duration_sec * fps)
+    
+    # 2. Filter and Sort files
+    valid_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.tiff')
+    files = [f for f in os.listdir(directory_path) if f.lower().endswith(valid_extensions)]
+    files.sort()
+    
+    current_frame = 1
+    channel = 1
+
+    for file_name in files:
+        file_path = os.path.join(directory_path, file_name)
+        
+        # 3. Create the image strip
+        strip = sequencer.sequences.new_image(
+            name=file_name,
+            filepath=file_path,
+            channel=channel,
+            frame_start=current_frame
+        )
+        
+        strip.frame_final_duration = strip_frame_length
+        
+        # 4. FIT TO ASPECT RATIO LOGIC
+        # Ensure the strip uses Transform properties
+        # 4. FIT TO ASPECT RATIO LOGIC
+        # Use 'BILINEAR' or 'CUBIC_MITCHELL' for smooth scaling
+        strip.transform.filter = 'BILINEAR' 
+        
+        # Access the first element of the image strip to get resolution
+        # Note: Some versions require a scene update to see these values immediately
+        bpy.context.view_layer.update() 
+        
+        img_width = strip.elements[0].orig_width
+        img_height = strip.elements[0].orig_height
+        
+        if img_width > 0 and img_height > 0:
+            scale_x = render_width / img_width
+            scale_y = render_height / img_height
+            
+            # Use min() to Fit (show whole image) or max() to Fill (no black bars)
+            fit_scale = min(scale_x, scale_y)
+            
+            strip.transform.scale_x = fit_scale
+            strip.transform.scale_y = fit_scale
+        
+        # Get image original resolution (available after creation)
+        img_width = strip.elements[0].orig_width
+        img_height = strip.elements[0].orig_height
+        
+        
+        # 5. Increment timing for next strip
+        current_frame += strip_frame_length
+
+    print(f"Imported {len(files)} images fitted to {render_width}x{render_height}")
+
+
+# --- SETTINGS ---
+# Replace with your actual folder path
+target_folder = "C:\\Users\\root\Desktop\\Bluetooth"
+slide_length = 1.6  # Change this to 2, 3, or any decimal for seconds
+
+create_fitted_image_strips(target_folder, slide_length)
