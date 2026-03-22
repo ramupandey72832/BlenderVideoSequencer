@@ -1,0 +1,97 @@
+
+You are a professional  blender script writter
+
+https://www.vecteezy.com/free-videos/rose-petals-falling-green-screen
+
+https://youtu.be/Agvs9xmAYaQ
+
+
+
+
+import bpy
+import random
+
+def setup_petal_production():
+    # --- 1. CLEANUP PREVIOUS SCENE ---
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.delete()
+
+    # --- 2. MATERIALS SETUP ---
+    # Petal Material (Deep Red)
+    mat_petal = bpy.data.materials.new(name="Petal_Red")
+    mat_petal.use_nodes = True
+    nodes = mat_petal.node_tree.nodes
+    bsdf = nodes.get("Principled BSDF")
+    bsdf.inputs['Base Color'].default_value = (0.6, 0.01, 0.02, 1.0)
+    bsdf.inputs['Roughness'].default_value = 0.5
+    # Subsurface scattering makes them look like organic tissue
+    bsdf.inputs['Subsurface Weight'].default_value = 0.2 
+
+    # Green Screen Material
+    mat_green = bpy.data.materials.new(name="GreenScreen")
+    mat_green.use_nodes = True
+    g_nodes = mat_green.node_tree.nodes
+    g_bsdf = g_nodes.get("Principled BSDF")
+    # Pure Chroma Green: R:0, G:1, B:0
+    g_bsdf.inputs['Base Color'].default_value = (0, 1, 0, 1)
+    g_bsdf.inputs['Emission Color'].default_value = (0, 1, 0, 1)
+    g_bsdf.inputs['Emission Strength'].default_value = 0.5
+
+    # --- 3. CREATE OBJECTS ---
+    # The Reference Petal
+    bpy.ops.mesh.primitive_plane_add(size=0.25, location=(0, 0, -10))
+    petal = bpy.context.active_object
+    petal.name = "Ref_Petal"
+    petal.data.materials.append(mat_petal)
+    
+    # Add a slight "cup" shape for aerodynamics
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.transform.vertex_random(offset=0.08)
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    # The Green Screen Backdrop
+    bpy.ops.mesh.primitive_plane_add(size=30, location=(0, 20, 0))
+    bg = bpy.context.active_object
+    bg.rotation_euler[0] = 1.5708 # 90 degrees
+    bg.data.materials.append(mat_green)
+
+    # The Emitter (High up)
+    bpy.ops.mesh.primitive_plane_add(size=12, location=(0, 0, 15))
+    emitter = bpy.context.active_object
+    
+    # --- 4. PARTICLE SYSTEM ---
+    emitter.modifiers.new(name="PetalFall", type='PARTICLE_SYSTEM')
+    ps = emitter.particle_systems[0].settings
+    
+    ps.count = 800
+    ps.frame_start = 1
+    ps.frame_end = 250
+    ps.lifetime = 300
+    
+    # Physics Settings (Lightweight Flutter)
+    ps.mass = 0.02
+    ps.damping = 0.1
+    
+    # Rotation (The 'Tumble')
+    ps.use_rotations = True
+    ps.rotation_factor_random = 1.0
+    ps.phase_factor_random = 2.0
+    ps.angular_velocity_mode = 'RAND'
+    ps.angular_velocity_factor = 3.0
+    
+    # Render settings
+    ps.render_type = 'OBJECT'
+    ps.instance_object = petal
+    ps.particle_size = 1.0
+    ps.size_random = 0.6
+
+    # --- 5. LIGHTING & CAMERA ---
+    bpy.ops.object.light_add(type='SUN', location=(5, -5, 10))
+    bpy.context.object.data.energy = 4.0
+    
+    bpy.ops.object.camera_add(location=(0, -15, 5))
+    cam = bpy.context.active_object
+    cam.rotation_euler = (1.4, 0, 0) # Tilted slightly up
+    bpy.context.scene.camera = cam
+
+setup_petal_production()
